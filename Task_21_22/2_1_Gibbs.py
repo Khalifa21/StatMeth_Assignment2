@@ -4,88 +4,10 @@ Created on Mon Dec  9 16:35:31 2019
 
 @author: clari & Mohamed
 """
-import numpy as np
 import math
 import matplotlib.pyplot as plt
-
-def generateSequences(alphabg_list, alphamw_list, num_seq, len_seq, len_motif, saveOpt=False, displayOpt=False):
-    # Generate thetas for Background and Motif with corresponding Dirichlet priors
-    thetaBg = np.random.dirichlet(alphabg_list)
-    thetaMw = np.random.dirichlet(alphamw_list, size=len_motif) # Generates Theta_j for each motif position
-
-    seqList = np.zeros((num_seq, len_seq))
-    startList = np.zeros(num_seq)
-
-    for s in range(num_seq):
-        # Get the starting point of motif
-        r = np.random.randint(len_seq-len_motif+1)
-        startList[s] = r
-
-        for pos in range(len_seq):
-            # Sample from Background
-            if pos < r or pos >= r+len_motif:
-                value = np.where(np.random.multinomial(1,thetaBg)==1)[0][0]
-            # Sample from Motif
-            else:
-                j = pos - r # index of motif letter
-                value = np.where(np.random.multinomial(1,thetaMw[j])==1)[0][0]
-
-            seqList[s,pos] = value
-
-    seqList = seqList.astype(int)
-    startList = startList.astype(int)
-
-    # Store the motifs in the sequences into a multidimensional array for debugging.
-    motifList = np.zeros((num_seq,len_motif))
-    for i in range(num_seq):
-        r = startList[i]
-        motifList[i] = seqList[i,r:r+len_motif]
-    motifList = motifList.astype(int)
-
-    if displayOpt:
-        print("Background Parameters")
-        print("Alpha")
-        print(alphabg_list)
-        print("Theta")
-        print(thetaBg)
-
-        print("\nSequence List")
-        print(seqList)
-        print("\nStarting Positions of Motifs")
-        print(startList)
-
-        print("\nMotifs")
-        print(motifList)
-
-        print("\nMotif Parameters")
-        print("Alpha")
-        print(alphamw_list)
-        print("Theta")
-        print(thetaMw)
-
-    if saveOpt:
-        filename = "data/alphaBg.txt"
-        np.savetxt(filename, alphabg_list, fmt='%.5f')
-
-        filename = "data/alphaMw.txt"
-        np.savetxt(filename, alphamw_list, fmt='%.5f')
-
-        filename = "data/thetaBg.txt"
-        np.savetxt(filename, thetaBg, fmt='%.5f')
-
-        filename = "data/thetaMw.txt"
-        np.savetxt(filename, thetaMw, fmt='%.5f')
-
-        filename = "data/sequenceList.txt"
-        np.savetxt(filename, seqList, fmt='%d')
-
-        filename = "data/startList.txt"
-        np.savetxt(filename, startList, fmt='%d')
-
-        filename = "data/motifsInSequenceList.txt"
-        np.savetxt(filename, motifList, fmt='%d')
-
-    return  seqList, startList, motifList, thetaBg, thetaMw
+import numpy as np
+from Task_21_22.motif_generator import generateSequences
 
 def computeNkj(magicWordsMatrix,k,j):
     s = 0
@@ -176,18 +98,13 @@ def Gibbs(alphaListBg, alphaListMw, seqList, nb_iterations, W):
             results[R_str] += 1
         else:
             results[R_str] = 1
-    plt.plot(positions_list)
-    plt.show()
 
-    # finalR = []
-    # for index in results:
-    #     finalR.append(max(results[index].items(), key=lambda k: k[1])[0])
+    plt.plot(positions_list)
     finalR, prob = max(results.items(), key=lambda k: k[1])
     print("Final R {} with count {}".format([int(i) for i in finalR], prob))
-    # print("Final R {}".format([int(i) for i in finalR]))
 
 
-def main():
+def task_21():
     alphaListBg = [1, 1, 1, 1]
     alphaListMw = [1, 7, 10, 2]
     num_seq = 5
@@ -195,7 +112,35 @@ def main():
     len_motif = 5
     iterations = 1000
     seq_list, start_list = generateSequences(alphaListBg, alphaListMw, num_seq, len_seq, len_motif, saveOpt=False, displayOpt=False)[:2]
+    print("real r is ",start_list)
     Gibbs(alphaListBg, alphaListMw, seq_list, iterations, len_motif)
-    print("answer", start_list)
+    plt.show()
 
-if __name__ == "__main__": main()
+def task_22():
+    with open('data/2_1_alphaBg.txt','r') as alphaBg_file:
+        alphaListBg = []
+        for element in alphaBg_file:
+            alphaListBg.append(float(element[:-1]))
+
+    with open('data/2_1_alphaMw.txt','r') as alphaMw_file:
+        alphaListMw = []
+        for element in alphaMw_file:
+            alphaListMw.append(float(element[:-1]))
+
+    with open('data/2_1_data.txt','r') as data_file:
+        seq_list = []
+        num_seq = 0
+        for line in data_file:
+            seq_list.append([ch for ch in (line[:-1].split())])
+            num_seq += 1
+        seq_list = np.array(seq_list)
+
+    len_motif = 5 # needs to be read from user/file
+    iterations = 1000 # needs to be read from user/file
+    start_list = [] # needs to be read from user/file
+    # seq_list, start_list = generateSequences(alphaListBg, alphaListMw, num_seq, len_seq, len_motif, saveOpt=False, displayOpt=False)[:2]
+    print("real r is ",start_list)
+    Gibbs(alphaListBg, alphaListMw, seq_list, iterations, len_motif)
+    plt.show()
+
+if __name__ == "__main__": task_21()

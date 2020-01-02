@@ -84,8 +84,6 @@ def generateSequences(alphaListBg, alphaListMw, numSeq, lenSeq, lenMotif, saveOp
         
     return seqList, startList, motifList, thetaBg, thetaMw
 
-def gibs():
-    pass
 
 def main():
     alphaListBg = [1,1,1,1]
