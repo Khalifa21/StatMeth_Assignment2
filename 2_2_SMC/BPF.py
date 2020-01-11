@@ -52,7 +52,7 @@ def stratified_resampling(ws):
     j = 0
     for i in range(N):
         u = (stats.uniform.rvs() + i - 1) / N
-        while j < (N-1) and total < u: ##### CONDITION RAJOUTEE ICI !!
+        while j < (N-1) and total < u: ##### CONDITION j < (N-1) ADDED HERE
             j += 1
             total += ws[j]
 
@@ -101,6 +101,52 @@ def BPF(y,T,N,x0, phi, sigma, beta, sampling_method):
 
     return(normalisedWeights,particles, point_x, var_weights)
 
+def log_BPF(y,T,N,x0, phi, sigma, beta, sampling_method):
+    """ N : nb particles, T : nb of samples"""
+    particles = np.zeros((N, T))
+    normalisedWeights = np.zeros((N, T))
+
+    # Init state
+    particles[:, 0] = x0  # Deterministic initial condition
+    w = np.zeros(N)
+    for i in range(N):
+        w[i] = normal(0,beta*exp(particles[i,0]))
+    
+    logweights = -(1 /2) * (y[0] - w) ** 2
+    max_weight = max(logweights)  # Subtract the maximum value for numerical stability
+    w_p = np.exp(logweights - max_weight)
+    normalisedWeights[:, 0] = w_p / sum(w_p)
+
+    for t in range(1,T):
+        # Resampling
+        if sampling_method == "multi":
+            indexes = multinomial_resampling(normalisedWeights[-1])
+        elif sampling_method == "stratified":
+            indexes = stratified_resampling(normalisedWeights[-1])
+        else:
+            sys.exit('Specify a sampling method. Either "muli" or "stratified"')
+        resample_particules = particles[-1][indexes]
+
+        for i in range(N):
+            particles[i, t] = normal(phi*resample_particules[i],sigma**2)
+
+        w = np.zeros(N)
+        for i in range(N):
+            w[i] = normal(0,beta*exp(particles[i,t]))
+        
+        logweights = -(1 /2) * (y[t] - w) ** 2
+        max_weight = max(logweights)  # Subtract the maximum value for numerical stability
+        w_p = np.exp(logweights - max_weight)
+        normalisedWeights[:, t] = w_p / sum(w_p)
+
+    #point estimate
+    point_x = sum(np.multiply(normalisedWeights[-1], particles[-1]))/N
+
+    #variance normalized weights
+    var_weights = np.var(normalisedWeights[-1])
+
+    return(normalisedWeights,particles, point_x, var_weights)
+
 
 def main():
     x0 = normal(0,sigma**2)
@@ -125,7 +171,7 @@ def main():
         plt.show()
 
     def weights_plot():
-        norm_w,particles,point_x,var_weights=BPF(y,T,N,x[0], phi, sigma, beta, sampling_method)
+        norm_w,particles,point_x,var_weights=log_BPF(y,T,N,x[0], phi, sigma, beta, sampling_method)
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
         ax1.hist(norm_w[:, 1])
         ax2.hist(norm_w[:, 10])
@@ -135,8 +181,8 @@ def main():
         ax3.set_title('normalized weights iter 50')
         plt.show()
 
-    weights_plot()
-    #point_plot()
+    #weights_plot()
+    point_plot()
 
 if __name__ == "__main__": main()
 

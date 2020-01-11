@@ -7,7 +7,7 @@ Created on Mon Dec  9 16:35:31 2019
 import math
 import matplotlib.pyplot as plt
 import numpy as np
-from Task_21_22.motif_generator import generateSequences
+from motif_generator import generateSequences
 
 def computeNkj(magicWordsMatrix,k,j):
     s = 0
@@ -92,8 +92,9 @@ def Gibbs(alphaListBg, alphaListMw, seqList, nb_iterations, W):
         positions_list.append(R[:])
     positions_list = [positions_list[j] for j in range(100, nb_iterations, 20)]
     results = {}
+
     for R in positions_list:
-        R_str = ''.join(str(i) for i in R.tolist())
+        R_str = ','.join(str(i) for i in R.tolist())
         if results.get(R_str):
             results[R_str] += 1
         else:
@@ -101,14 +102,15 @@ def Gibbs(alphaListBg, alphaListMw, seqList, nb_iterations, W):
 
     plt.plot(positions_list)
     finalR, prob = max(results.items(), key=lambda k: k[1])
-    print("Final R {} with count {}".format([int(i) for i in finalR], prob))
+    print("Final R {} with count {}".format([int(i) for i in finalR.split(",")], prob))
+
 
 
 def task_21():
     alphaListBg = [1, 1, 1, 1]
     alphaListMw = [1, 7, 10, 2]
     num_seq = 5
-    len_seq = 10
+    len_seq = 20
     len_motif = 5
     iterations = 1000
     seq_list, start_list = generateSequences(alphaListBg, alphaListMw, num_seq, len_seq, len_motif, saveOpt=False, displayOpt=False)[:2]
