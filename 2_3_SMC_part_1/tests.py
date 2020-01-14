@@ -71,6 +71,7 @@ def log_BPF(y, T, N, x0, phi, sigma, beta, sampling_method):
         else:
             sys.exit('Specify a sampling method. Either "muli" or "stratified"')
         resample_particules = particles[:,t-1][indexes]
+        print(resample_particules)
 
         for i in range(N):
             particles[i, t] = normal(phi*resample_particules[i],sigma)
