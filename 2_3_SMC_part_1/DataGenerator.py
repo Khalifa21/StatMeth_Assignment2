@@ -1,6 +1,7 @@
 from math import *
 from numpy.random import normal
 import matplotlib.pyplot as plt
+import numpy as np
 
 T = 100
 phi = 1.
@@ -8,7 +9,7 @@ sigma = 0.16
 beta = 0.64
 
    
-def SVGenerator(phi, sigma, beta, T):
+def SVGenerator(phi, sigma, beta, T, saveOpt = True):
     xt=[None for i in range(T)]
     yt=[None for i in range(T)]
 
@@ -18,6 +19,11 @@ def SVGenerator(phi, sigma, beta, T):
     for t in range(1,T):
         xt[t]=normal(phi*xt[t-1],sigma)
         yt[t]=normal(0,beta*exp(xt[t]/2))
+
+    if saveOpt:
+        np.savetxt("params.txt",np.array([phi,sigma,beta]),fmt='%.17f')
+        np.savetxt("y.txt",np.array(yt),fmt='%.17f')
+        np.savetxt("x.txt",np.array(xt),fmt='%.17f')
 
     return xt,yt
 
