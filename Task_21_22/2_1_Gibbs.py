@@ -8,6 +8,7 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 from Task_21_22.motif_generator import generateSequences
+from tqdm import tqdm
 
 def computeNkj(magicWordsMatrix,k,j):
     s = 0
@@ -38,31 +39,105 @@ def computeBk(backgroundMat,k):
     return s
 
 
-def probaDj(alphaListMw, W, magicWordsMatrix, variabList):
+def probaDj(alphaListMw, W, mw_count, variabList, N):
     sum_alpha = sum(alphaListMw)
-    N = len(magicWordsMatrix)
     prod = 0
     gamma_cst = math.lgamma(sum_alpha)-math.lgamma((N*W)+sum_alpha)
     for j in range(W):
         prod_j = 0
         for index,k in enumerate(variabList):
-            prod_j += math.lgamma(computeNkj(magicWordsMatrix,k,j) + alphaListMw[index])-math.lgamma(alphaListMw[index])
+            prod_j += math.lgamma(mw_count[j][k] + alphaListMw[index])-math.lgamma(alphaListMw[index])
         prod_j = gamma_cst + prod_j
         prod += prod_j
 
     return prod
 
 
-def probaDb(alphaListBg, W, backgroundMat, variabList, M):
+def probaDb(alphaListBg, W, bg_count, variabList, N, M,mw_count,seqList,R,row_number,col_number):
     sum_alpha_Bg = sum(alphaListBg)
-    N = len(backgroundMat)
     gamma_cst = math.lgamma(sum_alpha_Bg)-math.lgamma((N*(M-W))+sum_alpha_Bg)
     prod_j = 0
     for index, k in enumerate(variabList):
-        prod_j += math.lgamma(computeBk(backgroundMat, k) + alphaListBg[index])-math.lgamma(alphaListBg[index])
+        try:
+            prod_j += math.lgamma(bg_count[k] + alphaListBg[index])-math.lgamma(alphaListBg[index])
+        except:
+            # print ("seqlist", seqList)
+            # print("row_number",row_number)
+            # print("col_number",col_number)
+            # print("bgcount", bg_count)
+            # print("mwcount", mw_count)
+            # print("R",R)
+            prod_j += math.lgamma(bg_count[k] + alphaListBg[index]) - math.lgamma(alphaListBg[index])
     prod = gamma_cst + prod_j
     return prod
 
+def init_count(seqList, R, W, variabList):
+    mw_count = {}
+    bg_count = {}
+    ### init ###
+    for var in variabList:
+        bg_count[var] = 0
+
+    for i in range(W):
+        mw_count[i] = {}
+        for var in variabList:
+            mw_count[i][var] = 0
+
+    ### counting ###
+    for row in range(len(seqList)):
+        for col in range(len(seqList[0])):
+            if col >= R[row] and col < R[row] + W:
+                mw_count[col-R[row]][seqList[row][col]] += 1
+            else:
+                bg_count[seqList[row][col]] += 1
+
+    return mw_count, bg_count
+
+
+def easy_update(seqList, old_r, new_r, W, row_number, mw_count, bg_count): # update counts after moving one cell to the right
+    # print("easy_update")
+    # print("row_number",row_number)
+    # print("old_col", old_r)
+    # print("new_col", new_r)
+    # print("before")
+    # print("bgcount", bg_count)
+    # print("mwcount", mw_count)
+    bg_count[seqList[row_number][old_r]] += 1
+    bg_count[seqList[row_number][new_r+ W -1]] -= 1
+    for index in range(W):
+        mw_count[index][seqList[row_number][old_r+index]] -= 1
+        mw_count[index][seqList[row_number][new_r+ index]] += 1
+    # print("after")
+    # print("bgcount", bg_count)
+    # print("mwcount", mw_count)
+    return mw_count, bg_count
+
+
+def hard_update(seqList, old_r, new_r, W, row_number, mw_count, bg_count): # update counts after moving one row down
+    # print("hard_update")
+    # print("row_number", row_number)
+    # print("old_col", old_r)
+    # print("new_col", new_r)
+    # print("before")
+    # print("bgcount", bg_count)
+    # print("mwcount", mw_count)
+    if old_r == new_r:
+        return mw_count, bg_count
+    for index in range(W):
+
+        mw_count[index][seqList[row_number][old_r + index]] -= 1
+        mw_count[index][seqList[row_number][new_r + index]] += 1
+
+    for index in range(W):
+        bg_count[seqList[row_number][old_r + index]] += 1
+
+    for index in range(W):
+        bg_count[seqList[row_number][new_r + index]] -= 1
+
+    # print("after")
+    # print("bgcount", bg_count)
+    # print("mwcount", mw_count)
+    return mw_count, bg_count
 
 def Gibbs(alphaListBg, alphaListMw, seqList, nb_iterations, W, burn_in, step):
     N = len(seqList)
@@ -72,14 +147,19 @@ def Gibbs(alphaListBg, alphaListMw, seqList, nb_iterations, W, burn_in, step):
     samples = {i:0 for i in range(M-W+1)}
     positions_list = []
     positions_list.append(np.random.randint(0, M-W+1,size= N))
-    for it in range(nb_iterations):
+    for it in tqdm(range(nb_iterations)):
         R = positions_list[-1].copy()
-        for n in range(N):
+        mw_count, bg_count = init_count(seqList, R, W, variabList)
+        for n in tqdm(range(N)):
             list_proba = []
+
             for index in range(M-W+1):
+                if index == 0:
+                    mw_count, bg_count = hard_update(seqList, R[n], index, W, n, mw_count, bg_count)
+                else:
+                    mw_count, bg_count = easy_update(seqList, index-1, index, W, n, mw_count, bg_count)
                 R[n] = index
-                magicWordsMat, backgroundMat = computeMwMatrix(seqList, R, W)
-                proba = probaDb(alphaListBg, W, backgroundMat, variabList, M) + probaDj(alphaListMw, W, magicWordsMat, variabList)
+                proba = probaDb(alphaListBg, W, bg_count, variabList, N, M, mw_count,seqList,R,n,index) + probaDj(alphaListMw, W, mw_count, variabList, N)
                 list_proba.append(proba)
 
             # r_max = np.argmax(list_proba)
@@ -91,6 +171,7 @@ def Gibbs(alphaListBg, alphaListMw, seqList, nb_iterations, W, burn_in, step):
             r_max = np.argmax(np.random.multinomial(1, list_proba))
             # r_max = np.argmax(list_proba)
             R[n] = r_max
+            mw_count, bg_count = hard_update(seqList, M - W, r_max, W, n, mw_count, bg_count)
         positions_list.append(R[:])
     positions_list = [positions_list[j] for j in range(burn_in, nb_iterations, step)]
     results = {}
@@ -155,7 +236,7 @@ def task_21():
 
     #### Predicted Positions #####
     for m in range(num_seq):
-        fig = plt.figure(figsize=(16, 8), dpi=360)
+        fig = plt.figure(figsize=(16, 8))
         fig.suptitle('Prediction for position {}'.format(m), fontsize=20)
         plt.xlabel('iterations', fontsize=18)
         plt.ylabel('predicted position', fontsize=16)
@@ -163,30 +244,30 @@ def task_21():
         for trial in range(number_trials):
             plt.plot(positions_list[trial, :, m], label="trial {}".format(trial))
         plt.legend(loc="upper right")
-        plt.savefig('Figures/predicted_pos{}.png'.format(m))
+        # plt.savefig('Figures/predicted_pos{}.png'.format(m))
 
     ### Mean Square Error #####
     for m in range(num_seq):
-        fig = plt.figure(figsize=(16, 8), dpi=360)
+        fig = plt.figure(figsize=(16, 8))
         fig.suptitle('MSE for position {}'.format(m), fontsize=20)
         plt.xlabel('iterations', fontsize=18)
         plt.ylabel('Mse', fontsize=16)
         for trial in range(number_trials):
             plt.plot(mean_square_error(start_list[m], positions_list[trial, :, m]), label="trial {}".format(trial))
         plt.legend(loc="upper right")
-        plt.savefig('Figures/mse_pos{}.png'.format(m))
+        # plt.savefig('Figures/mse_pos{}.png'.format(m))
 
     #### Estimated Potential Scale Reduction #####
     conv = []
     for it in range(2, iterations):
         conv.append(estimated_potential_scale_reduction(positions_list[:, 0:it, :]))
     conv = np.array(conv)
-    plt.figure(figsize=(16, 8), dpi=360)
+    plt.figure(figsize=(16, 8))
     for m in range(num_seq):
         plt.plot(conv[:, m], label='$position = {}$'.format(m))
     plt.title('Estimated potential scale reduction over sample number')
     plt.legend(loc=1)
-    plt.savefig('Figures/estimated_potential_scale_reduction.png')
+    # plt.savefig('Figures/estimated_potential_scale_reduction.png')
 
 
     plt.show()
@@ -216,16 +297,16 @@ def task_22():
                 break
         seq_list = np.array(seq_list)
 
-    len_motif = 5 # needs to be read from user/file
-    iterations = 500
-    burn_in = 50
-    step = 20
+    len_motif = 10 # needs to be read from user/file
+    iterations = 100
+    burn_in = 20
+    step = 5
     number_trials = 10
     # start_list = [] # needs to be read from user/file
     # seq_list, start_list = generateSequences(alphaListBg, alphaListMw, num_seq, len_seq, len_motif, saveOpt=False, displayOpt=False)[:2]
     # print("real r is ",start_list)
     positions_list = []
-    for i in range(number_trials):
+    for i in tqdm(range(number_trials)):
         print("gibbs number",i)
         positions_list.append(Gibbs(alphaListBg, alphaListMw, seq_list, iterations, len_motif, burn_in, step))
 
