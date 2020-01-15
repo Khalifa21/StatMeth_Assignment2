@@ -1,9 +1,11 @@
 {
   "ExpandedNodes": [
     "",
-    "\\2_2_SMC",
-    "\\2_3_SMC_part_1"
+    "\\Codes",
+    "\\Codes\\2_2_SMC",
+    "\\Codes\\2_3_SMC_part1",
+    "\\Codes\\2_4_SMC_part2"
   ],
-  "SelectedNode": "\\2_3_SMC_part_1\\SMC.py",
+  "SelectedNode": "\\Codes\\2_2_SMC\\BPF.py",
   "PreviewInSolutionExplorer": false
 }

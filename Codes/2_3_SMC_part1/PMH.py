@@ -6,6 +6,8 @@ import scipy.stats as stats
 import sys
 from scipy.stats import invgamma
 from tqdm import tqdm
+
+
 def multinomial_resampling(ws, size=0):
     # Determine number of elements
     if size == 0:
@@ -38,6 +40,7 @@ def multinomial_resampling(ws, size=0):
 
     return out
 
+
 def stratified_resampling(ws):
     N = len(ws)
 
@@ -49,7 +52,7 @@ def stratified_resampling(ws):
     j = 0
     for i in range(N):
         u = (stats.uniform.rvs() + i - 1) / N
-        while total < u: 
+        while total < u:
             j += 1
             total += ws[j]
 
@@ -58,9 +61,10 @@ def stratified_resampling(ws):
 
     return out
 
-def log_BPF(phi, beta, sigma ,y, N, sampling_method = "multi"):
+
+def log_BPF(phi, beta, sigma, y, N, sampling_method="multi"):
     # sigma = 0.16
-    #phi = 1
+    # phi = 1
 
     T = len(y)
 
@@ -69,13 +73,13 @@ def log_BPF(phi, beta, sigma ,y, N, sampling_method = "multi"):
     normalisedWeights = np.zeros((N, T))
 
     # Init state, at t=0
-    x0 = normal(0, sigma, N) 
+    x0 = normal(0, sigma, N)
     particles[:, 0] = x0
 
     logweights_0 = np.zeros(N)
-    #for i in range(N):
+    # for i in range(N):
     #    logweights_0[i] = np.log(stats.norm.pdf(y[0], 0, beta*np.exp(x0[i]/2)))
-    logweights_0 = stats.norm.logpdf(y[0], 0, beta*np.exp(x0/2))
+    logweights_0 = stats.norm.logpdf(y[0], 0, beta * np.exp(x0 / 2))
 
     max_weight_0 = np.max(logweights_0)  # Subtract the maximum value for numerical stability
     w_p_0 = np.exp(logweights_0 - max_weight_0)
@@ -87,32 +91,32 @@ def log_BPF(phi, beta, sigma ,y, N, sampling_method = "multi"):
     for t in range(1, T):
         # Resampling
         if sampling_method == "multi":
-            indexes = multinomial_resampling(normalisedWeights[:,t-1])
+            indexes = multinomial_resampling(normalisedWeights[:, t - 1])
         elif sampling_method == "stratified":
-            indexes = stratified_resampling(normalisedWeights[:,t-1])
+            indexes = stratified_resampling(normalisedWeights[:, t - 1])
         else:
             sys.exit('Specify a sampling method. Either "muli" or "stratified"')
-        resample_particules = particles[:,t-1][indexes]
+        resample_particules = particles[:, t - 1][indexes]
 
         for i in range(N):
-            particles[i, t] = normal(phi*resample_particules[i],sigma)
+            particles[i, t] = normal(phi * resample_particules[i], sigma)
 
         # weighting step
         logweights = np.zeros(N)
         for i in range(N):
-            #if stats.norm.pdf(y[t], 0, beta*np.exp(particles[i, t]))==0:
+            # if stats.norm.pdf(y[t], 0, beta*np.exp(particles[i, t]))==0:
             #    break
-            #else:
-            logweights[i] = stats.norm.logpdf(y[t], 0, beta*np.exp(particles[i, t]))
-       
+            # else:
+            logweights[i] = stats.norm.logpdf(y[t], 0, beta * np.exp(particles[i, t]))
+
         max_weight = np.max(logweights)  # Subtract the maximum value for numerical stability
         w_p = np.exp(logweights - max_weight)
-        #w_p = np.multiply(normalisedWeights[:, t-1], w_p)
+        # w_p = np.multiply(normalisedWeights[:, t-1], w_p)
         normalisedWeights[:, t] = w_p / np.sum(w_p)  # Save the normalized weights
-     
+
         logLikelihood = logLikelihood + max_weight + np.log(np.sum(w_p)) - np.log(N)
 
-    return(normalisedWeights,particles, logLikelihood) 
+    return (normalisedWeights, particles, logLikelihood)
 
 
 def PMH(y, x0, phi=1, N=100, iterations=100):
@@ -126,20 +130,19 @@ def PMH(y, x0, phi=1, N=100, iterations=100):
     beta[0] = .5
     sigma[0] = .1
 
+    z[0] = log_BPF(phi, sqrt(beta[0]), sqrt(sigma[0]), y, N, sampling_method="multi")[2]
 
-    z[0] = log_BPF(phi,sqrt(beta[0]), sqrt(sigma[0]) ,y, N, sampling_method = "multi")[2]
-
-    for i in tqdm(range(1,iterations)):
+    for i in tqdm(range(1, iterations)):
         # Propose new parameters
         # A_proposed = A[i - 1] + step1 * np.random.normal(size=1)
-        beta_proposed = beta[i-1] + step1 * np.random.normal(size=1)
-        sigma_proposed = sigma[i-1] + step1 * np.random.normal(size=1)
+        beta_proposed = beta[i - 1] + step1 * np.random.normal(size=1)
+        sigma_proposed = sigma[i - 1] + step1 * np.random.normal(size=1)
         # while (abs(A_proposed) > 1):
         #     A_proposed = A[i - 1] + step1 * np.random.normal(size=1)
         while (beta_proposed > 1 or beta_proposed <= 0):
             beta_proposed = beta[i - 1] + step1 * np.random.normal(size=1)  # inv_gamma(.01,.01,x0)
         while (sigma_proposed > 1 or sigma_proposed <= 0):
-            sigma_proposed =sigma[i - 1] + step1 * np.random.normal(size=1)  # inv_gamma(.01,.01,x0)
+            sigma_proposed = sigma[i - 1] + step1 * np.random.normal(size=1)  # inv_gamma(.01,.01,x0)
 
         # Run a PF to evaluate the likelihood
         # z_hat = log_BPF(y=y, A=A_proposed, Q=Q, R=R, x0=x0, N=N)
@@ -149,9 +152,11 @@ def PMH(y, x0, phi=1, N=100, iterations=100):
 
         # Compute the acceptance probability
         # numerator = z_hat + stats.norm.logpdf(A_proposed)
-        numerator = z_hat + log(invgamma.pdf(a=.01,scale=.01, x=beta_proposed)) + log(invgamma.pdf(a=.01, scale=.01, x=sigma_proposed))
+        numerator = z_hat + log(invgamma.pdf(a=.01, scale=.01, x=beta_proposed)) + log(
+            invgamma.pdf(a=.01, scale=.01, x=sigma_proposed))
         # denominator = z[i - 1] + stats.norm.logpdf(A[i - 1])
-        denominator = z[i - 1] + log(invgamma.pdf(a=.01,scale=.01, x=beta[i-1])) + log(invgamma.pdf(a=.01, scale=.01, x=sigma[i-1]))
+        denominator = z[i - 1] + log(invgamma.pdf(a=.01, scale=.01, x=beta[i - 1])) + log(
+            invgamma.pdf(a=.01, scale=.01, x=sigma[i - 1]))
 
         # Acceptance probability
         alpha = np.exp(numerator - denominator)
@@ -164,13 +169,14 @@ def PMH(y, x0, phi=1, N=100, iterations=100):
             sigma[i] = sigma_proposed
 
         else:
-            z[i] = z[i-1]
+            z[i] = z[i - 1]
             # A[i] = A[i-1]
-            beta[i] = beta[i-1]
-            sigma[i] = sigma[i-1]
+            beta[i] = beta[i - 1]
+            sigma[i] = sigma[i - 1]
 
     # return A
     return beta, sigma, z
+
 
 def main():
     y = []
@@ -184,7 +190,7 @@ def main():
         for line in f:
             x.append(np.float(line.replace('\n', '')))
 
-    T = len(y)-1
+    T = len(y) - 1
 
     def test_PMH():
         """
@@ -197,12 +203,11 @@ def main():
         iterations = 1000
         beta_est, sigma_est, z = PMH(y, x0=1, phi=1, N=100, iterations=iterations)
 
-        burnIn = 200#int(iterations * .3)
-
+        burnIn = 200  # int(iterations * .3)
 
         nBins = int(np.floor(np.sqrt(iterations - burnIn)))
         Lbeta = beta_est[burnIn:]
-       # Plot the parameter posterior estimate (solid black line = posterior mean)
+        # Plot the parameter posterior estimate (solid black line = posterior mean)
         plt.subplot(2, 1, 1)
         plt.hist(Lbeta, nBins, normed=1, facecolor='#1B9E77')
         plt.xlabel("beta^2")
@@ -238,5 +243,6 @@ def main():
         plt.show()
 
     test_PMH()
+
 
 if __name__ == "__main__": main()
