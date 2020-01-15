@@ -1,11 +1,11 @@
 {
   "ExpandedNodes": [
     "",
-    "\\2_2_SMC\\Github_Codes",
-    "\\2_3_SMC_part_1",
-    "\\2_4_SMC_part_2",
-    "\\2_4_SMC_part_2\\githubcodes"
+    "\\Codes",
+    "\\Codes\\2_2_SMC",
+    "\\Codes\\2_3_SMC_part1",
+    "\\Codes\\2_4_SMC_part2"
   ],
-  "SelectedNode": "\\2_4_SMC_part_2\\CSMC.py",
+  "SelectedNode": "\\Codes\\2_2_SMC\\BPF.py",
   "PreviewInSolutionExplorer": false
 }
