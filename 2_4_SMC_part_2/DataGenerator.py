@@ -3,7 +3,7 @@ from numpy.random import normal
 import matplotlib.pyplot as plt
 import numpy as np
 
-T = 50
+T = 100
 phi = 1.
 sigma = 0.16
 beta = 0.64

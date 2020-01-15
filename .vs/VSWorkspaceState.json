@@ -1,9 +1,11 @@
 {
   "ExpandedNodes": [
     "",
-    "\\2_2_SMC",
-    "\\2_3_SMC_part_1"
+    "\\2_2_SMC\\Github_Codes",
+    "\\2_3_SMC_part_1",
+    "\\2_4_SMC_part_2",
+    "\\2_4_SMC_part_2\\githubcodes"
   ],
-  "SelectedNode": "\\2_3_SMC_part_1\\SMC.py",
+  "SelectedNode": "\\2_4_SMC_part_2\\CSMC.py",
   "PreviewInSolutionExplorer": false
 }

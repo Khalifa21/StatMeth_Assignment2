@@ -4,42 +4,9 @@ import numpy as np
 from numpy.random import normal
 import DataGenerator
 import scipy.stats as stats
+from tqdm import tqdm
 
-def SIS(beta, y, N=100):
-    T = 100
-    phi = 1
-    sigma = 0.16
-    l = 0
-
-    particles = np.zeros((N, T))
-    norm_w = np.zeros((N,T))
-
-    x0 = normal(0, sigma, N)
-    particles[:,0] = x0
-
-    alpha = np.zeros(N)
-    for i in range(N):
-        alpha[i] = stats.norm.pdf(y[0], 0, beta*exp(x0[i]/2))
-
-    w = alpha
-    w = w / np.sum(w)
-    
-    norm_w[:,0] = w
-    l += np.log(sum(w))
-
-    for t in range(1, T):
-        alpha = np.zeros(N)
-        for i in range (N):
-            particles[i, t] = normal(phi*particles[i, t - 1],sigma)
-            alpha[i] = stats.norm.pdf(y[t], 0, beta*exp(particles[i,t]/2))
-        w = np.multiply(w,alpha)
-        w = w/np.sum(w)
-        norm_w[:,t] = w
-        l += np.log(sum(w))
-
-    print(l)
-
-    return(norm_w, particles, l)
+phi = 1.
 
 def multinomial_resampling(ws, size=0):
     # Determine number of elements
@@ -196,6 +163,188 @@ def log_BPF(beta, sigma, y, N, sampling_method="multi"):
 
     return(normalisedWeights,particles, logLikelihood) 
 
+def CSMC(xref, y, beta, sigma, N):
+    phi = 1
+    T = len(y)
+
+    logLikelihood = 0
+    particles = np.zeros((N, T))
+    normalisedWeights = np.zeros((N, T))
+    B = np.zeros((N, T))
+
+    # Init state, at t=0
+    #x0 = normal(0, sigma, N-1) 
+    #particles[:-1, 0] = x0
+    #particles[-1, 0] = xref[0]
+
+    x0 = normal(0, sigma)
+    particles[:-1, 0] = x0
+
+    normalisedWeights[:, 0] = 1/N  # Save the normalized weights
+    B[:, 0] = list(range(N))
+
+    #logweights_0 = np.zeros(N)
+    #for i in range(N):
+    #    logweights_0[i] = np.log(stats.norm.pdf(y[0], 0, beta*np.exp(particles[i, 0]/2)))
+
+    #max_weight_0 = np.max(logweights_0)  # Subtract the maximum value for numerical stability
+    #w_p_0 = np.exp(logweights_0 - max_weight_0)
+    #normalisedWeights[:, 0] = w_p_0 / np.sum(w_p_0)  # Save the normalized weights
+
+    # accumulate the log-likelihood
+    #logLikelihood = logLikelihood + max_weight_0 + np.log(sum(w_p_0)) - np.log(N)
+
+    for t in range(1, T):
+        newAncestors = multinomial_resampling(normalisedWeights[:,t-1])
+        resample_particules = particles[:,t-1][newAncestors]
+        for i in range(N):
+            particles[i, t] = normal(phi*resample_particules[i],sigma)
+
+        # weighting step
+        logweights = np.zeros(N)
+        for i in range(N):
+            logweights[i] = stats.norm.logpdf(y[t], 0, beta*np.exp(particles[i, t]))
+       
+        max_weight = np.max(logweights)  # Subtract the maximum value for numerical stability
+        w_p = np.exp(logweights - max_weight)
+        new_weights = np.exp(logweights - max_weight)
+        w = new_weights / sum(new_weights)  # Save the normalized weights
+
+        ancestors = multinomial_resampling(w)
+        newAncestors = newAncestors[ancestors]
+        newAncestors[N - 1] = N - 1
+
+        #normalisedWeights[:, t] = w_p / np.sum(w_p)  # Save the normalized weights
+        
+        newAncestors = newAncestors.astype(int)
+        B[:, t - 1] = newAncestors
+
+        logLikelihood = logLikelihood + max_weight + np.log(np.sum(w)) - np.log(N)  ###
+
+        # propogation step
+        particles[:, t] = particles[:, t][newAncestors]
+        particles[N - 1, t] = xref[t]
+
+        # weighting step
+        logweights = np.zeros(N)
+        for i in range(N):
+            logweights[i] = stats.norm.logpdf(y[t], 0, beta*np.exp(particles[i, t]))
+        max_weight = max(logweights)  # Subtract the maximum value for numerical stability
+        new_weights = np.exp(logweights - max_weight) / w[ancestors]
+        normalisedWeights[:, t] = new_weights / sum(new_weights)
+
+    B[:, T - 1] = list(range(N))
+    return(normalisedWeights,particles, logLikelihood,B) 
+
+def CSMC2(xref, y, beta, sigma, N):
+    phi = 1
+    T = len(y)
+
+    logLikelihood = 0
+    particles = np.zeros((N, T))
+    normalisedWeights = np.zeros((N, T))
+    B = np.zeros((N, T))
+
+    # Init state, at t=0
+    x0 = normal(0, sigma, N-1) 
+    particles[:-1, 0] = x0
+    particles[-1, 0] = xref[0]
+
+    normalisedWeights[:, 0] = 1/N  # Save the normalized weights
+    B[:, 0] = list(range(N))
+
+    #logweights_0 = np.zeros(N)
+    #for i in range(N):
+    #    logweights_0[i] = np.log(stats.norm.pdf(y[0], 0, beta*np.exp(particles[i, 0]/2)))
+
+    #max_weight_0 = np.max(logweights_0)  # Subtract the maximum value for numerical stability
+    #w_p_0 = np.exp(logweights_0 - max_weight_0)
+    #normalisedWeights[:, 0] = w_p_0 / np.sum(w_p_0)  # Save the normalized weights
+
+    # accumulate the log-likelihood
+    #logLikelihood = logLikelihood + max_weight_0 + np.log(sum(w_p_0)) - np.log(N)
+
+    for t in range(1, T):
+
+        newAncestors = multinomial_resampling(normalisedWeights[:,t-1]) #5.
+        newAncestors[-1] = N-1 #5.
+        newAncestors = newAncestors.astype(int)
+        B[:, t - 1] = newAncestors
+        resample_particules = particles[:,t-1][newAncestors] #5.
+
+        for i in range(N):
+            particles[i, t] = normal(phi*resample_particules[i],sigma) #6.
+        particles[-1,t] = xref[t] #6.
+
+        # weighting step
+        logweights = np.zeros(N)
+        for i in range(N):
+            logweights[i] = stats.norm.logpdf(y[t], 0, beta*np.exp(particles[i, t]))
+       
+        max_weight = np.max(logweights)  # 6.
+        w_p = np.exp(logweights - max_weight)
+        normalisedWeights[:, t] = w_p / np.sum(w_p)  # 6.
+
+        logLikelihood = logLikelihood + max_weight + np.log(np.sum(w_p)) - np.log(N)  ###
+
+    B[:, T - 1] = list(range(N))
+    return(normalisedWeights,particles, logLikelihood, B) 
+
+def x_b(x, weights, B, T):
+    x_star = np.zeros(T)
+    J = np.where(np.random.uniform(size=1) < np.cumsum(weights[:, T - 1]))[0][0]
+
+    for t in range(T):
+        x_star[t] = x[int(B[J, t]), t]
+
+    return(x_star)
+
+def PG(xref, y, beta2Init, sigma2Init, prior_a, prior_b, N, M):
+    # Number of states
+    T = len(y)
+
+    # Initialize the state parameters
+    Lbeta2 = np.zeros(M)
+    Lsigma2 = np.zeros(M)
+    X = np.zeros((M, T))
+
+    Lbeta2[0] = beta2Init
+    Lsigma2[0] = sigma2Init
+    x_ref = np.zeros(T)
+
+    # Initialize the state by running a CPF
+    beta2 = Lbeta2[0]
+    sigma2 = Lsigma2[0]
+
+    norm_w, particles, likelihood, B = CSMC2(xref, y, np.sqrt(beta2), np.sqrt(sigma2), N)
+    X[0, :] = x_b(particles, norm_w, B, T)
+
+    # Run MCMC loop
+    for m in tqdm(range(1, M)):
+
+        # Sample the parameters (inverse gamma posteriors)
+        err_beta2 = np.zeros(T)
+        err_sigma2 = np.zeros(T)
+        for t in range(1,T):
+            err_beta2[t] = np.exp(-X[m - 1, t])*y[t]**2
+            err_sigma2[t] = X[m - 1, t] - phi*X[m - 1, t - 1]
+
+        err_beta2 = np.sum(err_beta2)
+        err_sigma2 = np.sum(err_sigma2 **2)
+
+        Lbeta2[m] = stats.invgamma.rvs(a=prior_a + T/2, scale=prior_b + err_beta2 / 2, size=1)
+        Lsigma2[m] = stats.invgamma.rvs(a=prior_a + T/2, scale=prior_b + err_sigma2 / 2, size=1)
+
+        # Run CPF
+        beta2 = Lbeta2[m]
+        sigma2 = Lsigma2[m]
+        #print("beta", np.sqrt(beta2))
+        #print("sigma", np.sqrt(sigma2))
+        norm_w, particles, likelihood, B = CSMC2(X[m - 1, :], y, np.sqrt(beta2), np.sqrt(sigma2), N)
+        X[m, :] = x_b(particles, norm_w, B, T)
+
+    return Lbeta2, Lsigma2
+
 def main():
     y = []
 
@@ -339,38 +488,25 @@ def main():
         fig.tight_layout()
         plt.show()
 
-    def variance_likelihood(algo, param = "T"):
-        sigma = 0.16
+    def plot_csmc():
+        T = 100
         beta = 0.64
-        phi = 1.
-        step = 2
-
-        if param == "N":
-            T = 100
-            x,y = DataGenerator.SVGenerator(phi, sigma, beta, T)
-            list_likelihood = []
-            for n in range(10,500,step):
-                norm_w, particles, likelihood = algo(beta, sigma, y, n)
-                list_likelihood.append(likelihood)
-                print(n)
-            plt.plot(list_likelihood)
-            plt.xlabel('N/'+str(step))
-        
-        if param == "T":
-            N = 100
-            list_likelihood = []
-            for t in range(10,200,step):
-                print(t)
-                x,y = DataGenerator.SVGenerator(phi, sigma, beta, t)
-                norm_w, particles, likelihood = algo(beta, sigma, y, N)
-                list_likelihood.append(likelihood)
-            plt.plot(list_likelihood)
-            plt.xlabel('T/'+str(step))
-        
-        plt.ylabel('log likelihood')
+        sigma = 0.16
+        for j in range(3):
+            norm_w, particles, likelihood, B = CSMC(x, y, beta, sigma, 100)
+            X = []
+            for i in range(T):
+                x_1 = sum(np.multiply(norm_w[:,i], particles[:,i]))
+                X.append(x_1)
+            plt.plot(X, label = "estimated x "+str(j))
+        plt.plot(x, label = "true x")
+        plt.legend()
+        plt.xlabel("T")
+        plt.ylabel("xt")
         plt.show()
 
     algo = log_BPF
+    #plot_csmc()
     #algo(0.64, y)
     #likelihood_plot(algo)
     #point_plot2(algo)
@@ -378,6 +514,102 @@ def main():
     #point_plot(algo)
     #point_plot3()
     #likelihood_plot2(algo)
-    variance_likelihood(algo)
+
+    #I = [x/10 for x in range(2,20,1)]
+    #list_beta = []
+    #for beta in I:
+    #    print("beta = ", beta)
+    #    norm_w, particles, likelihood, B = CSMC2(x, y, beta, 0.16, 100)
+    #    list_beta.append(likelihood)
+    #plt.plot(I, list_beta)
+    #plt.show()
+
+    N = 50
+    M = 1100
+    burnIn = 100
+
+    Lbeta, Lsigma = PG(x, y, 1, 1, 0.01, 0.01, N,  M)
+    grid = np.arange(burnIn, M, 1)
+    nBins = int(np.floor(np.sqrt(M - burnIn)))
+
+    Lbeta = Lbeta[burnIn:,]
+    # Plot the parameter posterior estimate (solid black line = posterior mean)
+    plt.subplot(3, 1, 1)
+    plt.hist(Lbeta, nBins, normed=1, facecolor='#1B9E77')
+    plt.xlabel("beta^2")
+    plt.ylabel("posterior density estimate")
+    plt.axvline(np.mean(Lbeta), color='k')
+
+    # Plot the trace of the Markov chain after burn-in (solid black line = posterior mean)
+    plt.subplot(3, 1, 2)
+    plt.plot(Lbeta, color='#1B9E77')
+    plt.xlabel("iteration")
+    plt.ylabel("beta^2")
+    plt.axhline(np.mean(Lbeta), color='k')
+
+    # Plot the autocorrelation function
+    plt.subplot(3, 1, 3)
+    macf = np.correlate(Lbeta - np.mean(Lbeta), Lbeta - np.mean(Lbeta), mode='full')
+    idx = int(macf.size / 2)
+    macf = macf[idx:]
+    macf = macf[0:100]
+    macf /= macf[0]
+    grid = range(len(macf))
+    plt.plot(grid, macf, color='#1B9E77')
+    plt.xlabel("lag")
+    plt.ylabel("ACF of beta^2")
+
+    plt.show()
+
+    LSigma= Lsigma[burnIn:,]/100
+    # Plot the parameter posterior estimate (solid black line = posterior mean)
+    plt.subplot(3, 1, 1)
+    plt.hist(LSigma, nBins, normed=1, facecolor='#1B1E22')
+    plt.xlabel("sigma^2")
+    plt.ylabel("posterior density estimate")
+    plt.axvline(np.mean(LSigma), color='k')
+
+    # Plot the trace of the Markov chain after burn-in (solid black line = posterior mean)
+    plt.subplot(3, 1, 2)
+    plt.plot(LSigma, color='#1B1E22')
+    plt.xlabel("iteration")
+    plt.ylabel("sigma^2")
+    plt.axhline(np.mean(LSigma), color='k')
+
+    # Plot the autocorrelation function
+    plt.subplot(3, 1, 3)
+    macf = np.correlate(LSigma - np.mean(LSigma), Lbeta - np.mean(LSigma), mode='full')
+    idx = int(macf.size / 2)
+    macf = macf[idx:]
+    macf = macf[0:100]
+    macf /= macf[0]
+    grid = range(len(macf))
+    plt.plot(grid, macf, color='#1B1E22')
+    plt.xlabel("lag")
+    plt.ylabel("ACF of sigma^2")
+
+    plt.show()
+
+
+    #plt.plot(Lbeta)
+    #plt.xlabel("Number of iterations M")
+    #plt.ylabel("beta^2")
+    #plt.show()
+
+    #plt.plot(Lsigma)
+    #plt.xlabel("Number of iterations M")
+    #plt.ylabel("sigma^2")
+    #plt.show()
+
+    #nBins = int(np.floor(np.sqrt(M - burnIn)))
+    #plt.hist(Lbeta[burnIn:,], nBins)
+    #plt.xlabel("beta^2")
+    #plt.ylabel("posterior density estimate")
+    #plt.show()
+
+    #plt.hist(Lsigma[burnIn:,]/100, nBins)
+    #plt.xlabel("sigma^2")
+    #plt.ylabel("posterior density estimate")
+    #plt.show()
 
 if __name__ == "__main__": main()
