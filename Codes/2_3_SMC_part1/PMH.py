@@ -139,9 +139,9 @@ def PMH(y, x0, phi=1, N=100, iterations=100):
         sigma_proposed = sigma[i - 1] + step1 * np.random.normal(size=1)
         # while (abs(A_proposed) > 1):
         #     A_proposed = A[i - 1] + step1 * np.random.normal(size=1)
-        while (beta_proposed > 1 or beta_proposed <= 0):
+        while (beta_proposed <= 0):
             beta_proposed = beta[i - 1] + step1 * np.random.normal(size=1)  # inv_gamma(.01,.01,x0)
-        while (sigma_proposed > 1 or sigma_proposed <= 0):
+        while (sigma_proposed <= 0):
             sigma_proposed = sigma[i - 1] + step1 * np.random.normal(size=1)  # inv_gamma(.01,.01,x0)
 
         # Run a PF to evaluate the likelihood
