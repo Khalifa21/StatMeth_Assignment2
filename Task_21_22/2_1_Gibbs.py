@@ -215,6 +215,80 @@ def estimated_potential_scale_reduction(positions_list):
 
     return R
 
+def acc_mse(predicted,start):
+    acc = 0
+    for i in range(len(predicted)):
+        if predicted[i] == start[i]:
+            acc += 1
+    acc = acc * 10
+    mse = np.square(start-predicted).mean()
+    return acc,mse
+
+def choose_final(positions_list,type,start_list=None):
+    trials, iterations, dimension = positions_list.shape
+    if type == "last_avg":
+        output = []
+        for pos in range(dimension):
+            position = 0
+            for j in range(trials):
+                position += positions_list[j, -1, pos]
+            position = int(round(position / trials))
+            output.append(position)
+    elif type == "last_count":
+        output = []
+        count = {}
+        for pos in range(dimension):
+            count[pos] = {}
+            for trial in range(trials):
+                if count[pos].get(positions_list[trial,-1,pos]):
+                    count[pos][positions_list[trial,-1,pos]] += 1
+                else:
+                    count[pos][positions_list[trial,-1,pos]] = 1
+            position = max(count[pos].items(),key=lambda x:x[1])[0]
+            output.append(position)
+    elif type == "avg":
+        output = []
+        for pos in range(dimension):
+            position = 0
+            for trial in range(trials):
+                for it in range(iterations):
+                    position += positions_list[trial,it,pos]
+            position = int(round(position / (trials*iterations)))
+            output.append(position)
+    elif type == "count":
+        output = []
+        count = {}
+        for pos in range(dimension):
+            count[pos] = {}
+            for trial in range(trials):
+                for it in range(iterations):
+                    if count[pos].get(positions_list[trial,it,pos]):
+                        count[pos][positions_list[trial,it,pos]] += 1
+                    else:
+                        count[pos][positions_list[trial,it,pos]] = 1
+
+            position = max(count[pos].items(),key=lambda x:x[1])[0]
+            output.append(position)
+    acc,mse = None if start_list is None else acc_mse(output, start_list)
+    return output, acc, mse
+
+def majority_vote(predictions,start_list):
+    options, dimension = predictions.shape
+    output = []
+    count = {}
+    for pos in range(dimension):
+        count[pos] = {}
+        for trial in range(options):
+            if count[pos].get(predictions[trial, pos]):
+                count[pos][predictions[trial, pos]] += 1
+            else:
+                count[pos][predictions[trial, pos]] = 1
+
+        position = max(count[pos].items(), key=lambda x: x[1])[0]
+        output.append(position)
+
+    return output, acc_mse(output, start_list)
+
 def task_21():
     alphaListBg = [1, 1, 1, 1]
     alphaListMw = [.8, .8, .8, .8]
@@ -227,12 +301,27 @@ def task_21():
     number_trials = 10
 
     seq_list, start_list = generateSequences(alphaListBg, alphaListMw, num_seq, len_seq, len_motif, saveOpt=False, displayOpt=False)[:2]
-    print("Real r is ", start_list)
     positions_list = []
     for i in range(number_trials):
         positions_list.append(Gibbs(alphaListBg, alphaListMw, seq_list, iterations, len_motif, burn_in, step))
     positions_list = np.array(positions_list)
-
+    print("True R ", start_list)
+    last_avg_pred, last_avg_acc = choose_final(positions_list,"last_avg",start_list)
+    print("FINAL R with last_avg ",last_avg_pred, last_avg_acc)
+    last_count_pred, last_count_acc = choose_final(positions_list, "last_count",start_list)
+    print("FINAL R with last_count ", last_count_pred, last_count_acc)
+    avg_pred, avg_acc = choose_final(positions_list, "avg",start_list)
+    print("FINAL R with avg ", avg_pred, avg_acc)
+    count_pred, count_acc = choose_final(positions_list, "count",start_list)
+    print("FINAL R with count ", count_pred, count_acc)
+    predictions = []
+    predictions.append(last_avg_pred)
+    predictions.append(last_count_pred)
+    predictions.append(avg_pred)
+    predictions.append(count_pred)
+    predictions = np.array(predictions)
+    majority_pred, majority_acc = majority_vote(predictions, start_list)
+    print("FINAL R with majority ", majority_pred, majority_acc)
 
     #### Predicted Positions #####
     for m in range(num_seq):
@@ -244,7 +333,7 @@ def task_21():
         for trial in range(number_trials):
             plt.plot(positions_list[trial, :, m], label="trial {}".format(trial))
         plt.legend(loc="upper right")
-        # plt.savefig('Figures/predicted_pos{}.png'.format(m))
+        plt.savefig('Figures/predicted_pos{}.png'.format(m))
 
     ### Mean Square Error #####
     for m in range(num_seq):
@@ -255,7 +344,7 @@ def task_21():
         for trial in range(number_trials):
             plt.plot(mean_square_error(start_list[m], positions_list[trial, :, m]), label="trial {}".format(trial))
         plt.legend(loc="upper right")
-        # plt.savefig('Figures/mse_pos{}.png'.format(m))
+        plt.savefig('Figures/mse_pos{}.png'.format(m))
 
     #### Estimated Potential Scale Reduction #####
     conv = []
@@ -267,10 +356,10 @@ def task_21():
         plt.plot(conv[:, m], label='$position = {}$'.format(m))
     plt.title('Estimated potential scale reduction over sample number')
     plt.legend(loc=1)
-    # plt.savefig('Figures/estimated_potential_scale_reduction.png')
+    plt.savefig('Figures/estimated_potential_scale_reduction.png')
 
 
-    plt.show()
+    # plt.show()
 
 
 def task_22():
@@ -312,6 +401,22 @@ def task_22():
 
     positions_list = np.array(positions_list)
 
+    last_avg_pred, last_avg_acc = choose_final(positions_list, "last_avg")
+    print("FINAL R with last_avg ", last_avg_pred, last_avg_acc)
+    last_count_pred, last_count_acc = choose_final(positions_list, "last_count")
+    print("FINAL R with last_count ", last_count_pred, last_count_acc)
+    avg_pred, avg_acc = choose_final(positions_list, "avg")
+    print("FINAL R with avg ", avg_pred, avg_acc)
+    count_pred, count_acc = choose_final(positions_list, "count")
+    print("FINAL R with count ", count_pred, count_acc)
+    predictions = []
+    predictions.append(last_avg_pred)
+    predictions.append(last_count_pred)
+    predictions.append(avg_pred)
+    predictions.append(count_pred)
+    predictions = np.array(predictions)
+    majority_pred, majority_acc = majority_vote(predictions)
+    print("FINAL R with majority ", majority_pred, majority_acc)
 
     #### Predicted Positions #####
     for m in range(num_seq):
@@ -340,4 +445,4 @@ def task_22():
     plt.show()
 
 
-if __name__ == "__main__": task_22()
+if __name__ == "__main__": task_21()
